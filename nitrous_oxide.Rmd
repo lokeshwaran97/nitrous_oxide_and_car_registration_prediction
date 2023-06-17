@@ -1,0 +1,125 @@
+---
+title: "coursework"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+#add library ggplot which is used to plot graphs
+library(ggplot2)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+#import the file using read.csv function
+df = read.csv("a23_nox.csv")
+
+```
+
+```{r}
+#new attribute cale data class is created the values of this attribute will be a date class 
+df$date_class = as.Date(df$date, format="%d/%m/%y")
+
+#the graph is plotted based on date and nitrous oxide level
+ggplot(df, aes(x = date_class, y = daily_mean_nox)) + geom_line() + 
+  xlab("Feb 2017- Sep 2017 \nFig(1)") + ylab("nitrous oxides levels (ug/m3)") + # x and y axis labels
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") + # y aixs values format displayed based on months
+  ggtitle("London nitrous oxide levels")
+```
+
+
+
+
+```{r}
+#the dataset is changed to time series data for further analysis
+data = ts(df$daily_mean_nox)
+```
+
+
+
+```{r}
+#autocorrelation against lag is plotted in chart
+acf(data)
+```
+
+
+
+
+```{r}
+#the data is differenced at lag 7
+seasonal = diff(data, lag = 7)
+
+```
+
+```{r}
+#seasonally differenced data is plotted 
+plot(seasonal)
+```
+
+
+```{r}
+#autocorrelation of seasonally differenced data
+acf(seasonal)
+```
+
+
+```{r}
+#partial autocorrelation of seasonally differenced data
+pacf(seasonal, ylim=c(-1,1))
+```
+
+```{r}
+#ARIMA model with non seasonal AR(1) and seasonal AR(2) parameters 
+model = Arima(data, order = c(1,0,0), seasonal = (list(order = c(2,1,0), period = 7)), method = "ML")
+model
+```
+
+```{r}
+# residuals of the model
+residuals = residuals(model)
+# residuals chart
+plot(residuals)
+```
+
+```{r}
+#autocorrelation plot for residuals
+acf(residuals)
+```
+
+
+
+```{r}
+#Fitted graph of the model
+ggplot(df, aes(x =date_class )) + geom_line(aes(y = model$x), color = 'blue') + geom_line(aes(y = fitted(model)), color = 'red') + xlab("Feb 2017- Sep 2017 \nFig(1)") + ylab("nitrous oxides levels (ug/m3)") + scale_x_date(date_breaks = "1 month", date_labels = "%b") + ggtitle("London nitrous oxide levels")  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

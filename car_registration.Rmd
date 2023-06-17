@@ -1,0 +1,204 @@
+---
+title: "coursework"
+author: "Lokeshwaran Arunachalam"
+date: "2023-04-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+#Load the libraries 
+library(dplyr)
+library(ggplot2)
+library(forecast)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+#Load the data
+df = read.csv("eng_car_reg.csv")
+```
+
+
+
+```{r}
+#The graph of car registrations over years based on four quarters in a year
+ggplot(df, aes(x = year, y = no_new_regs, color = quarter)) + geom_line() + labs(y = "car registrations (in thousands)", color = "Quarter", x = "Year")+ ggtitle("Car registrations in England from 2001 to 2022")
+```
+
+```{r}
+#dataset is converted into time series data
+data = ts(df$no_new_reg,start=c(2001,1),frequency=4)
+
+```
+
+
+
+
+```{r}
+#time series data is plotted
+plot(data, ylab = "Car Registrations", xlab = "Year")
+title(main = "Car registrations in England from 2001 to 2022")
+```
+
+
+
+```{r}
+#autocorrelation agains the lag is plotted
+acf(data)
+```
+
+
+
+```{r}
+# the data is differenced at lag 4 
+seasonal = diff(data, lag = 4)
+
+```
+
+
+```{r}
+# the differenced data at lag 4 is plotted
+plot(seasonal, xlab="Year", ylab="car registred")
+title(main = "Car registred data differenced at lag 4")
+```
+
+
+```{r}
+#the ACF and PACF were plotted against the lag
+par(mfrow=c(1,2))
+acf(seasonal)
+pacf(seasonal, ylim= c(-1, 1))
+```
+
+
+
+
+
+```{r}
+#ARIMA model is fitted for non seasonal AR(1) , MA(1), and seasonal MA(1) with seasonal difference at lag 4
+model = Arima(data, order = c(1,0,1), seasonal = (list(order = c(0,1,1), period = 4)), method = "ML")
+
+```
+
+
+
+```{r}
+#residuals of the model were plotted
+checkresiduals(model)
+```
+```{r}
+#Function to produce P-values for the Ljung-Box test for different lags
+#where an ARIMA(p,d,q)x(P,D,Q)_h model has been fitted.
+#Note that k must be > p+q+P+Q 
+#Number of degrees of freedom for the test = k-p-q-P-Q
+
+#Arguments for the function "LB_test"
+#resid = residuals from a fitted ARIMA(p,d,q)x(P,D,Q)_h model
+
+#max.k = the maximum value of k at which we perform the test
+#Note that the minimum k is set at p+q+P+Q+1 (corresponding to a test with one degree
+#of freedom)
+
+#p = Order of the non-seasonal AR part of the model
+#q = Order of the non-seasonal MA part of the model
+#P = Order of the seasonal AR part of the model
+#Q = Order of the seasonal MA part of the model 
+
+#The function returns a table with one column showing the number of degrees 
+#of freedom for the test and the other the associated P-value.
+
+LB_test_SARIMA<-function(resid,max.k,p,q,P,Q){
+ lb_result<-list()
+ df<-list()
+ p_value<-list()
+  for(i in (p+q+P+Q+1):max.k){
+   lb_result[[i]]<-Box.test(resid,lag=i,type=c("Ljung-Box"),fitdf=(p+q+P+Q))
+   df[[i]]<-lb_result[[i]]$parameter
+   p_value[[i]]<-lb_result[[i]]$p.value
+  }
+ df<-as.vector(unlist(df))
+ p_value<-as.vector(unlist(p_value))
+ test_output<-data.frame(df,p_value)
+ names(test_output)<-c("deg_freedom","LB_p_value")
+ return(test_output)
+ }
+```
+
+```{r}
+#Since p+q=1, we run the following command to perform the first ten
+#Ljung-Box tests for the model residuals where k is the degress of freedom
+#p,q represents number of non-seasonal AR and MA parameters
+#P,Q represents seasonal AR and MA parameters
+SARIMA_LB<-LB_test_SARIMA(residuals(mod2),max.k=11, p=1, q=1 ,P=0, Q=1)
+
+#To produce a plot of the P-values against the degrees of freedom and
+#add a blue dashed line at 0.05, we run the commands
+plot(SARIMA_LB$deg_freedom,SARIMA_LB$LB_p_value,xlab="Degrees of freedom",ylab="Pvalue",
+main="Ljung-Box test P-values",ylim=c(0,1))
+abline(h=0.05,col="blue",lty=2)
+```
+
+```{r}
+#the forecasted value for the next quarters were obtained using forecast function, level = 95 indicates 95% confidence interval 
+forecasted_data = forecast(data, h = 4,model = model, level = 95)
+```
+
+
+
+
+
+
+
+
+```{r}
+#Fitted ARIMA model is plotted with actual values
+plot(model$x, col = "blue", xlab = "Year", ylab = "Car registered (in thousands)")
+lines(fitted(model), col = "red")
+title(main = "Fitted ARIMA(1, 0, 1)(0, 1, 1)[4] model predictions")
+```
+
+
+```{r}
+# summary of the forecasted data
+summary(forecasted_data)
+```
+
+
+```{r}
+#the upper , lower, predicted and the actual values of the data were merged
+combined_data = cbind(forecasted_data$mean, forecasted_data$upper, forecasted_data$lower, data)
+```
+
+
+```{r}
+#the forecasted vlaue is plotted
+autoplot(combined_data, xlab = "Year", ylab = "Car registered (in thousands)",main = "Forecasted car registered value for Q4 of 2022 and Q1-Q3 of 2023") + scale_color_discrete(labels = c("mean", "upper confidence level", "lower confidence level", "actual value"))
+```
+
+```{r}
+forecasted_data
+```
+
+
+
+
+
+
+
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
